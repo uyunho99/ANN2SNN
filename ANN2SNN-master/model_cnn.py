@@ -46,21 +46,25 @@ class Network_ANN(nn.Module):
         return self
 
     def forward(self, input):
-        x = self.conv1(input)  # 1*28*28 -> 16*28*28
+        print(f"Input size: {input.size()}")
+        x = self.conv1(input)
+        print(f"After conv1: {x.size()}")
         x = self.HalfRect1(x)
         x = self.dropout1(x)
-        x = self.subsample1(x)  # 16*28*28 -> 16*14*14
-        x = self.conv2(x)  # 16*14*14 -> 32*14*14
+        x = self.subsample1(x)
+        print(f"After subsample1: {x.size()}")
+        x = self.conv2(x)
+        print(f"After conv2: {x.size()}")
         x = self.HalfRect2(x)
         x = self.dropout2(x)
-        x = self.subsample2(x)  # 32*14*14 -> 32*7*7
-        x = self.conv3(x)  # 32*7*7 -> 32*4*4
+        x = self.subsample2(x)
+        print(f"After subsample2: {x.size()}")
+        x = x.view(-1, 128)
+        print(f"After view: {x.size()}")
+        x = self.fc1(x)
+        print(f"After fc1: {x.size()}")
         x = self.HalfRect3(x)
-        x = self.dropout3(x)
-        x = self.subsample3(x)  # 32*4*4 -> 32*2*2
-        x = x.view(-1, 128)  # 32*2*2 -> 256
-        x = self.fc1(x)  # 256 -> 10
-        x = self.HalfRect4(x)
+        print(f"Output size: {x.size()}")
         return x
 
     def normalize_nn(self, train_loader):

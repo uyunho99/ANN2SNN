@@ -46,7 +46,8 @@ for epoch in range(num_epochs):
         ANN.zero_grad()
         optimizer.zero_grad()
         inputs = inputs.float().to(device)
-        labels_ = torch.zeros(batch_sz, 10).scatter_(
+        current_batch_size = inputs.size(0)
+        labels_ = torch.zeros(current_batch_size, 10).scatter_(
             1, targets.view(-1, 1), 1).to(device)
         outputs = ANN(inputs)
         loss = criterion(outputs, labels_)
