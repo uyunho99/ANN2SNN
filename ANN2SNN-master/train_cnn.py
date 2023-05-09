@@ -13,12 +13,12 @@ def mnist_transform():
 
 train_batch_size = 100
 train_dataset = torchvision.datasets.MNIST(
-    root="D:\Dataset\mnist", train=True, download=True, transform=mnist_transform())
+    root="./Dataset/mnist", train=True, download=True, transform=mnist_transform())
 train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=train_batch_size, shuffle=True)
 
 val_dataset = torchvision.datasets.MNIST(
-    root="D:\Dataset\mnist", train=False, download=False, transform=mnist_transform())
+    root="./Dataset/mnist", train=False, download=False, transform=mnist_transform())
 val_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=128, shuffle=False)
 
