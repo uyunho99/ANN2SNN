@@ -20,24 +20,24 @@ class Network_ANN(nn.Module):
         self.dropout1 = nn.Dropout(0.7)
         self.subsample1 = nn.AvgPool2d(2, 2, 0)
         self.conv2 = nn.Conv2d(in_channels=16,
-                               out_channels=16,
+                               out_channels=32,
                                kernel_size=5,
                                stride=1,
                                padding=1,
                                bias=False)
         self.HalfRect2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(0.7)
+        self.dropout2 = nn.Dropout(0.9)
         self.subsample2 = nn.AvgPool2d(2, 2, 0)
-        self.conv3 = nn.Conv2d(in_channels=16,
-                               out_channels=16,
+        self.conv3 = nn.Conv2d(in_channels=32,
+                               out_channels=32,
                                kernel_size=5,
                                stride=2,
                                padding=1,
                                bias=False)
         self.HalfRect3 = nn.ReLU()
-        self.dropout3 = nn.Dropout(0.7)
-        self.subsample3 = nn.AvgPool2d(1, 1, 0)
-        self.fc1 = nn.Linear(256, 10, bias=False)
+        self.dropout3 = nn.Dropout(0.8)
+        self.subsample3 = nn.AvgPool2d(2, 2, 0)
+        self.fc1 = nn.Linear(128, 10, bias=False)
         self.HalfRect4 = nn.ReLU()
 
     def to(self, device):
@@ -50,17 +50,17 @@ class Network_ANN(nn.Module):
         x = self.HalfRect1(x)
         x = self.dropout1(x)
         x = self.subsample1(x)  # 16*28*28 -> 16*14*14
-        x = self.conv2(x)  # 16*14*14 -> 16*14*14
+        x = self.conv2(x)  # 16*14*14 -> 32*14*14
         x = self.HalfRect2(x)
         x = self.dropout2(x)
-        x = self.subsample2(x)  # 16*14*14 -> 16*7*7
-        x = self.conv3(x)  # 16*7*7 -> 16*4*4
+        x = self.subsample2(x)  # 32*14*14 -> 32*7*7
+        x = self.conv3(x)  # 32*7*7 -> 32*4*4
         x = self.HalfRect3(x)
         x = self.dropout3(x)
-        x = self.subsample3(x)  # 16*4*4 -> 16*4*4
-        x = x.view(-1, 256)  # 16*4*4 -> 256
+        x = self.subsample3(x)  # 32*4*4 -> 32*2*2
+        x = x.view(-1, 128)  # 32*2*2 -> 256
         x = self.fc1(x)  # 256 -> 10
-        x = self.HalfRect4(x)  # 10 -> 10
+        x = self.HalfRect4(x)
         return x
 
     def normalize_nn(self, train_loader):
@@ -85,7 +85,7 @@ class Network_ANN(nn.Module):
             x = self.dropout3(self.HalfRect3(self.conv3(x)))
             conv3_activation_max = max(conv3_activation_max, torch.max(x))
             x = self.subsample3(x)
-            x = x.view(-1, 256)
+            x = x.view(-1, 128)
             x = self.HalfRect4(self.fc1(x))
             fc1_activation_max = max(fc1_activation_max, torch.max(x))
         self.train()
@@ -131,24 +131,24 @@ class Network_SNN(nn.Module):
         self.dropout1 = nn.Dropout(0.7)
         self.subsample1 = nn.AvgPool2d(2, 2, 0)
         self.conv2 = nn.Conv2d(in_channels=16,
-                               out_channels=16,
+                               out_channels=32,
                                kernel_size=5,
                                stride=1,
                                padding=1,
                                bias=False)
         self.HalfRect2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(0.7)
+        self.dropout2 = nn.Dropout(0.9)
         self.subsample2 = nn.AvgPool2d(2, 2, 0)
-        self.conv3 = nn.Conv2d(in_channels=16,
-                               out_channels=16,
+        self.conv3 = nn.Conv2d(in_channels=32,
+                               out_channels=32,
                                kernel_size=5,
                                stride=2,
                                padding=1,
                                bias=False)
         self.HalfRect3 = nn.ReLU()
-        self.dropout3 = nn.Dropout(0.7)
-        self.subsample3 = nn.AvgPool2d(1, 1, 0)
-        self.fc1 = nn.Linear(256, 10, bias=False)
+        self.dropout3 = nn.Dropout(0.8)
+        self.subsample3 = nn.AvgPool2d(2, 2, 0)
+        self.fc1 = nn.Linear(128, 10, bias=False)
         self.HalfRect4 = nn.ReLU()
 
         self.threshold = threshold
@@ -187,13 +187,13 @@ class Network_SNN(nn.Module):
         mem_post_subsample1 = spk_post_subsample1 = spksum_post_subsample1 = torch.zeros(
             batch_size, 16, 14, 14, device=self.device)
         mem_post_conv2 = spk_post_conv2 = spksum_post_conv2 = torch.zeros(
-            batch_size, 16, 14, 14, device=self.device)
+            batch_size, 32, 14, 14, device=self.device)
         mem_post_subsample2 = spk_post_subsample2 = spksum_post_subsample2 = torch.zeros(
-            batch_size, 16, 7, 7, device=self.device)
+            batch_size, 32, 7, 7, device=self.device)
         mem_post_conv3 = spk_post_conv3 = spksum_post_conv3 = torch.zeros(
-            batch_size, 16, 4, 4, device=self.device)
+            batch_size, 32, 4, 4, device=self.device)
         mem_post_subsample3 = spk_post_subsample3 = spksum_post_subsample3 = torch.zeros(
-            batch_size, 16, 4, 4, device=self.device)
+            batch_size, 32, 2, 2, device=self.device)
         mem_post_fc1 = spk_post_fc1 = spksum_post_fc1 = torch.zeros(
             batch_size, 10, device=self.device)
 
@@ -226,7 +226,7 @@ class Network_SNN(nn.Module):
                 t, self.subsample3, mem_post_subsample3, spk_post_conv3)
             spksum_post_subsample3 = spksum_post_subsample3 + spk_post_subsample3
 
-            spk_post_subsample3_ = spk_post_subsample3.view(batch_size, 256)
+            spk_post_subsample3_ = spk_post_subsample3.view(batch_size, 128)
             mem_post_fc1, spk_post_fc1 = self.mem_update(
                 t, self.fc1, mem_post_fc1, spk_post_subsample3_)
             spksum_post_fc1 = spksum_post_fc1 + spk_post_fc1

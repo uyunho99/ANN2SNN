@@ -49,7 +49,7 @@ for epoch in range(num_epochs):
         labels_ = torch.zeros(batch_sz, 10).scatter_(
             1, targets.view(-1, 1), 1).to(device)
         outputs = ANN(inputs)
-        loss = criterion(outputs, labels_.view(-1, 1))
+        loss = criterion(outputs, labels_)
         running_loss += loss.cpu().item()
         loss.backward()
         optimizer.step()
