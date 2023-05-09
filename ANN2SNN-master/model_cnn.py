@@ -10,34 +10,21 @@ import torch.nn.functional as F
 class Network_ANN(nn.Module):
     def __init__(self):
         super(Network_ANN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=1,
-                               out_channels=16,
-                               kernel_size=5,
-                               stride=1,
-                               padding=2,
-                               bias=False)
+        self.dropout_rate = 0.7
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=5, bias=False)
         self.HalfRect1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(0.7)
+        self.dropout1 = nn.Dropout(self.dropout_rate)
         self.subsample1 = nn.AvgPool2d(2, 2, 0)
-        self.conv2 = nn.Conv2d(in_channels=16,
-                               out_channels=32,
-                               kernel_size=5,
-                               stride=1,
-                               padding=1,
-                               bias=False)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=5, bias=False)
         self.HalfRect2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(0.9)
+        self.dropout2 = nn.Dropout(self.dropout_rate)
         self.subsample2 = nn.AvgPool2d(2, 2, 0)
-        self.conv3 = nn.Conv2d(in_channels=32,
-                               out_channels=32,
-                               kernel_size=5,
-                               stride=2,
-                               padding=1,
-                               bias=False)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, bias=False)
         self.HalfRect3 = nn.ReLU()
-        self.dropout3 = nn.Dropout(0.8)
-        self.subsample3 = nn.AvgPool2d(2, 2, 0)
-        self.fc1 = nn.Linear(128, 10, bias=False)
+        self.dropout3 = nn.Dropout(self.dropout_rate)
+        self.flatten = nn.Flatten()
+
+        self.fc1 = nn.Linear(64 * 2* 2, 10, bias=False)
         self.HalfRect4 = nn.ReLU()
 
     def to(self, device):
@@ -46,33 +33,15 @@ class Network_ANN(nn.Module):
         return self
 
     def forward(self, input):
-        # Input size: torch.Size([100, 1, 32, 32])
-        print(f"Input size: {input.size()}")
-        x = self.conv1(input)
-        # After conv1: torch.Size([100, 16, 32, 32])
-        print(f"After conv1: {x.size()}")
-        x = self.HalfRect1(x)
-        x = self.dropout1(x)
-        # After subsample1: torch.Size([100, 16, 16, 16])
+        x = self.dropout1(self.HalfRect1(self.conv1(input)))
         x = self.subsample1(x)
-        print(f"After subsample1: {x.size()}")
-        x = self.conv2(x)  # After conv2: torch.Size([100, 32, 16, 16])
-        print(f"After conv2: {x.size()}")
-        x = self.HalfRect2(x)
-        x = self.dropout2(x)
-        x = self.subsample2(x)  # After subsample2: torch.Size([100, 32, 8, 8])
-        print(f"After subsample2: {x.size()}")
-        x = self.conv3(x)  # After conv3: torch.Size([100, 32, 4, 4])
-        print(f"After conv3: {x.size()}")
-        x = self.HalfRect3(x)
-        x = self.dropout3(x)
-        x = self.subsample3(x)  # After subsample3: torch.Size([100, 32, 2, 2])
-        x = x.view(-1, 128)  # After view: torch.Size([100, 128])
-        print(f"After view: {x.size()}")
-        x = self.fc1(x)  # After fc1: torch.Size([100, 10])
-        print(f"After fc1: {x.size()}")
-        x = self.HalfRect3(x)
-        print(f"Output size: {x.size()}")
+        x = self.dropout2(self.HalfRect2(self.conv2(x)))
+        x = self.subsample2(x)
+        x = self.dropout3(self.HalfRect3(self.conv3(x)))
+
+        x = self.flatten(x)
+        x = self.HalfRect4(self.fc1(x))
+
         return x
 
     def normalize_nn(self, train_loader):
@@ -96,8 +65,7 @@ class Network_ANN(nn.Module):
             x = self.subsample2(x)
             x = self.dropout3(self.HalfRect3(self.conv3(x)))
             conv3_activation_max = max(conv3_activation_max, torch.max(x))
-            x = self.subsample3(x)
-            x = x.view(-1, 128)
+            x = x.view(-1, 256)
             x = self.HalfRect4(self.fc1(x))
             fc1_activation_max = max(fc1_activation_max, torch.max(x))
         self.train()
@@ -133,34 +101,21 @@ class Network_ANN(nn.Module):
 class Network_SNN(nn.Module):
     def __init__(self, time_window=35, threshold=1.0, max_rate=200):
         super(Network_SNN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=1,
-                               out_channels=16,
-                               kernel_size=5,
-                               stride=1,
-                               padding=2,
-                               bias=False)
+        self.dropout_rate = 0.7
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=5, bias=False)
         self.HalfRect1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(0.7)
+        self.dropout1 = nn.Dropout(self.dropout_rate)
         self.subsample1 = nn.AvgPool2d(2, 2, 0)
-        self.conv2 = nn.Conv2d(in_channels=16,
-                               out_channels=32,
-                               kernel_size=5,
-                               stride=1,
-                               padding=1,
-                               bias=False)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=5, bias=False)
         self.HalfRect2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(0.9)
+        self.dropout2 = nn.Dropout(self.dropout_rate)
         self.subsample2 = nn.AvgPool2d(2, 2, 0)
-        self.conv3 = nn.Conv2d(in_channels=32,
-                               out_channels=32,
-                               kernel_size=5,
-                               stride=2,
-                               padding=1,
-                               bias=False)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, bias=False)
         self.HalfRect3 = nn.ReLU()
-        self.dropout3 = nn.Dropout(0.8)
-        self.subsample3 = nn.AvgPool2d(2, 2, 0)
-        self.fc1 = nn.Linear(128, 10, bias=False)
+        self.dropout3 = nn.Dropout(self.dropout_rate)
+        self.flatten = nn.Flatten()
+
+        self.fc1 = nn.Linear(64 * 2* 2, 10, bias=False)
         self.HalfRect4 = nn.ReLU()
 
         self.threshold = threshold
@@ -193,19 +148,17 @@ class Network_SNN(nn.Module):
         batch_size = input.size(0)
 
         spk_input = spksum_input = torch.zeros(
-            batch_size, 1, 32, 32, device=self.device)
+            batch_size, 3, 32, 32, device=self.device)
         mem_post_conv1 = spk_post_conv1 = spksum_post_conv1 = torch.zeros(
-            batch_size, 16, 32, 32, device=self.device)
+            batch_size, 16, 28, 28, device=self.device)
         mem_post_subsample1 = spk_post_subsample1 = spksum_post_subsample1 = torch.zeros(
-            batch_size, 32, 16, 16, device=self.device)
+            batch_size, 16, 14, 14, device=self.device)
         mem_post_conv2 = spk_post_conv2 = spksum_post_conv2 = torch.zeros(
-            batch_size, 32, 16, 16, device=self.device)
+            batch_size, 32, 10, 10, device=self.device)
         mem_post_subsample2 = spk_post_subsample2 = spksum_post_subsample2 = torch.zeros(
-            batch_size, 32, 8, 8, device=self.device)
+            batch_size, 32, 5, 5, device=self.device)
         mem_post_conv3 = spk_post_conv3 = spksum_post_conv3 = torch.zeros(
-            batch_size, 32, 4, 4, device=self.device)
-        mem_post_subsample3 = spk_post_subsample3 = spksum_post_subsample3 = torch.zeros(
-            batch_size, 32, 2, 2, device=self.device)
+            batch_size, 64, 2, 2, device=self.device)
         mem_post_fc1 = spk_post_fc1 = spksum_post_fc1 = torch.zeros(
             batch_size, 10, device=self.device)
 
@@ -234,8 +187,8 @@ class Network_SNN(nn.Module):
                 t, self.conv3, mem_post_conv3, spk_post_subsample2)
             spksum_post_conv3 = spksum_post_conv3 + spk_post_conv3
 
-            mem_post_subsample3, spk_post_subsample3 = self.mem_update(
-                t, self.subsample3, mem_post_subsample3, spk_post_conv3)
+            mem_post_conv3_, spk_post_subsample3 = self.mem_update(
+                t, self.subsample3, mem_post_conv3_, spk_post_conv3)
             spksum_post_subsample3 = spksum_post_subsample3 + spk_post_subsample3
 
             spk_post_subsample3_ = spk_post_subsample3.view(batch_size, 128)
@@ -264,5 +217,5 @@ if __name__ == "__main__":
         m.register_forward_hook(hook)
 
     # (batch_size, channels, height, width)
-    y = net(Variable(torch.randn(32, 1, 32, 32)))
+    y = net(Variable(torch.randn(7, 3, 32, 32)))
     print(y.size())
