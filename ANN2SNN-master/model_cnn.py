@@ -46,22 +46,30 @@ class Network_ANN(nn.Module):
         return self
 
     def forward(self, input):
+        # Input size: torch.Size([100, 1, 32, 32])
         print(f"Input size: {input.size()}")
         x = self.conv1(input)
+        # After conv1: torch.Size([100, 16, 32, 32])
         print(f"After conv1: {x.size()}")
         x = self.HalfRect1(x)
         x = self.dropout1(x)
+        # After subsample1: torch.Size([100, 16, 16, 16])
         x = self.subsample1(x)
         print(f"After subsample1: {x.size()}")
-        x = self.conv2(x)
+        x = self.conv2(x)  # After conv2: torch.Size([100, 32, 16, 16])
         print(f"After conv2: {x.size()}")
         x = self.HalfRect2(x)
         x = self.dropout2(x)
-        x = self.subsample2(x)
+        x = self.subsample2(x)  # After subsample2: torch.Size([100, 32, 8, 8])
         print(f"After subsample2: {x.size()}")
-        x = x.view(-1, 128)
+        x = self.conv3(x)  # After conv3: torch.Size([100, 32, 4, 4])
+        print(f"After conv3: {x.size()}")
+        x = self.HalfRect3(x)
+        x = self.dropout3(x)
+        x = self.subsample3(x)  # After subsample3: torch.Size([100, 32, 2, 2])
+        x = x.view(-1, 128)  # After view: torch.Size([100, 128])
         print(f"After view: {x.size()}")
-        x = self.fc1(x)
+        x = self.fc1(x)  # After fc1: torch.Size([100, 10])
         print(f"After fc1: {x.size()}")
         x = self.HalfRect3(x)
         print(f"Output size: {x.size()}")
@@ -185,15 +193,15 @@ class Network_SNN(nn.Module):
         batch_size = input.size(0)
 
         spk_input = spksum_input = torch.zeros(
-            batch_size, 1, 28, 28, device=self.device)
+            batch_size, 1, 32, 32, device=self.device)
         mem_post_conv1 = spk_post_conv1 = spksum_post_conv1 = torch.zeros(
-            batch_size, 16, 28, 28, device=self.device)
+            batch_size, 16, 32, 32, device=self.device)
         mem_post_subsample1 = spk_post_subsample1 = spksum_post_subsample1 = torch.zeros(
-            batch_size, 16, 14, 14, device=self.device)
+            batch_size, 32, 16, 16, device=self.device)
         mem_post_conv2 = spk_post_conv2 = spksum_post_conv2 = torch.zeros(
-            batch_size, 32, 14, 14, device=self.device)
+            batch_size, 32, 16, 16, device=self.device)
         mem_post_subsample2 = spk_post_subsample2 = spksum_post_subsample2 = torch.zeros(
-            batch_size, 32, 7, 7, device=self.device)
+            batch_size, 32, 8, 8, device=self.device)
         mem_post_conv3 = spk_post_conv3 = spksum_post_conv3 = torch.zeros(
             batch_size, 32, 4, 4, device=self.device)
         mem_post_subsample3 = spk_post_subsample3 = spksum_post_subsample3 = torch.zeros(
@@ -256,5 +264,5 @@ if __name__ == "__main__":
         m.register_forward_hook(hook)
 
     # (batch_size, channels, height, width)
-    y = net(Variable(torch.randn(32, 1, 28, 28)))
+    y = net(Variable(torch.randn(32, 1, 32, 32)))
     print(y.size())
