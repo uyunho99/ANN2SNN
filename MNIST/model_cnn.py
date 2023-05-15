@@ -29,17 +29,17 @@ class Network_ANN(nn.Module):
         return self
 
     def forward(self, input):
-        x = self.conv1(input)  # 28x28x1 -> 24x24x16
-        x = self.HalfRect1(x)  # 24x24x16
-        x = self.dropout1(x)  # 24x24x16
-        x = self.subsample1(x)  # 24x24x16 -> 12x12x16
-        x = self.conv2(x)  # 12x12x16 -> 8x8x16
-        x = self.HalfRect2(x)  # 8x8x16
-        x = self.dropout2(x)  # 8x8x16
-        x = self.subsample2(x)  # 8x8x16 -> 4x4x16
-        x = x.view(-1, 256)  # 4x4x16 -> 256
-        x = self.fc1(x)  # 256 -> 10
-        x = self.HalfRect3(x)  # 10
+        x = self.conv1(input)
+        x = self.HalfRect1(x)
+        x = self.dropout1(x)
+        x = self.subsample1(x)
+        x = self.conv2(x)
+        x = self.HalfRect2(x)
+        x = self.dropout2(x)
+        x = self.subsample2(x)
+        x = x.view(-1, 256)
+        x = self.fc1(x)
+        x = self.HalfRect3(x)
         return x
 
     def normalize_nn(self, train_loader):
@@ -190,6 +190,5 @@ if __name__ == "__main__":
     for m in net.modules():
         m.register_forward_hook(hook)
 
-    # (batch_size, channels, height, width)
-    y = net(Variable(torch.randn(32, 1, 28, 28)))
+    y = net(Variable(torch.randn(11, 1, 28, 28)))
     print(y.size())
