@@ -1,8 +1,9 @@
 *.zip
 *.npz
-.idea
+.idea/
 *.pyc
 __pycache__/
+ANN2SNN-master/__pycache__/*
 .vscode
 .DS_Store
 ANN2SNN-master/Dataset/
