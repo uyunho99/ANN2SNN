@@ -1,16 +1,14 @@
 import torch as th
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from timm.models.layers import trunc_normal_
 from spikingjelly.clock_driven.neuron import MultiStepLIFNode
+# from spikingjelly.activation_based.neuron import LIFNode
 
 import math
 
 class PatchEmbedding(nn.Module):
     def __init__(self, in_channels=3, embed_dim=192, img_size=32, patch_size=4, drop_rate=0.1):
-        super(PatchEmbedding, self).__init__()
+        super().__init__()
         self.img_size = img_size # 32
         self.patch_size = patch_size # 4
         self.num_patches = (img_size // patch_size) ** 2 # 8*8 = 64
@@ -38,7 +36,7 @@ class PatchEmbedding(nn.Module):
         x = x.transpose(1, 2)  # (batch_size, num_patches, embed_dim): (batch_size, 64, 192)
         
         class_tokens = self.class_token.expand(B, -1, -1)  # (batch_size, 1, embed_dim): (batch_size, 1, 192)
-        x = th.cat((class_tokens, x), dim=1)  # (batch_size, num_patches + 1, embed_dim): (batch_size, 65, 192)
+        x = th.cat((class_tokens, x), dim=2)  # (batch_size, num_patches + 1, embed_dim): (batch_size, 65, 192)
         
         x += self.positional_embedding  # (batch_size, num_patches + 1, embed_dim): (batch_size, 65, 192)
         # x = self.dropout(x)
@@ -50,11 +48,12 @@ class SpikeSelfAttention(nn.Module):
         self.dim = dim # 임베딩 차원: 192
         self.num_head = num_head # 헤드 개수: 8
         self.scale = (dim // num_head) ** -0.5 # 192 / 8 = 24 -> 1/24
-        self.dropout = dropout # 드롭아웃 비율: 0.1
+        self.dropout = nn.Dropout(dropout) # 드롭아웃 비율: 0.1
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias) # (192, 576)
-        self.qkv_batchnorm = nn.BatchNorm1d(dim * 3)
-        self.qkv_neuron = MultiStepLIFNode(tau=2.0, detach_reset=True, backend='cupy')
+        # self.qkv_batchnorm = nn.BatchNorm1d(dim * 3) # (576)
+        self.qkv_neuron = MultiStepLIFNode(tau=2.0, detach_reset=True, backend='torch')
+        # self.qkv_neuron = LIFNode()
         
         self.proj = nn.Linear(dim, dim) # (192, 192)
         
@@ -81,8 +80,8 @@ class SpikeSelfAttention(nn.Module):
     def forward(self, x):
         B, N, C = x.shape # (batch_size, num_patches + 1, embed_dim): (batch_size, 65, 192)
 
-        qkv = self.qkv_neuron(self.qkv_batchnorm(self.qkv(x))) # (batch_size, num_patches + 1, embed_dim * 3): (batch_size, 65, 576)
-        qkv = qkv.reshape(B, N, 3, self.num_head, C // self.num_head).permute(2, 0, 3, 1, 4) # (3, batch_size, num_head, num_patches + 1, embed_dim // num_head): (3, batch_size, 8, 65, 24)
+        # qkv = self.qkv_neuron(self.qkv_batchnorm(self.qkv(x))) # (batch_size, num_patches + 1, embed_dim * 3): (batch_size, 65, 576)
+        qkv = self.qkv_neuron(self.qkv(x)).reshape(B, N, 3, self.num_head, C // self.num_head).permute(2, 0, 3, 1, 4) # (3, batch_size, num_head, num_patches + 1, embed_dim // num_head): (3, batch_size, 8, 65, 24)
         q, k, v = qkv.unbind(dim=0) # (batch_size, num_head, num_patches + 1, embed_dim // num_head): (batch_size, 8, 65, 24)
         # q = self.neuron(self.query(x)) 
         # k = self.neuron(self.key(x))
@@ -115,8 +114,7 @@ class MultiLayerPerceptron(nn.Module):
         return x
     
 class TransformerEncoder(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, dropout=0.1,
-                 activation=nn.GELU):
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, dropout=0.1):
         super().__init__()
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
@@ -124,8 +122,8 @@ class TransformerEncoder(nn.Module):
         self.mlp = MultiLayerPerceptron(dim, int(dim * mlp_ratio), dim, dropout=dropout) # (192, 768, 192)
         
     def forward(self, x):
-        x += self.attention(self.norm1(x))
-        x += self.mlp(self.norm2(x))
+        x = x + self.attention(x)
+        x = x + self.mlp(x)
         return x
         
 class SpikingViT(nn.Module):

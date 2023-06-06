@@ -4,7 +4,10 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-import model_spikeformer as model
+# import model_spikeformer as model
+import model_spikeformer_time as model
+
+# torch.autograd.set_detect_anomaly(True)
 
 # Load CIFAR-10 dataset
 transform = transforms.Compose(
@@ -38,6 +41,7 @@ def train_one_epoch(model, loader, device, criterion, optimizer):
         outputs = model(inputs)
         loss = criterion(outputs, labels)
         loss.backward()
+        # loss.backward(retain_graph=True) # retain_graph: backward()를 여러번 호출할 때, 그래프를 유지
         optimizer.step()
 
         running_loss += loss.item() * inputs.size(0)
