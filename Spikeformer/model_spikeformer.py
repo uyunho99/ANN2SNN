@@ -13,7 +13,7 @@ class PatchEmbedding(nn.Module):
         self.patch_size = patch_size # 4
         self.num_patches = (img_size // patch_size) ** 2 # 8*8 = 64
         self.embed_dim = embed_dim # 192
-        # self.dropout = nn.Dropout(drop_rate) # 0.1
+        self.dropout = nn.Dropout(drop_rate) # 0.1
         
         self.project = nn.Conv2d(
             in_channels=in_channels,
@@ -26,8 +26,8 @@ class PatchEmbedding(nn.Module):
         self.num_patches += 1 # 65
         self.positional_embedding = nn.Parameter(th.zeros(1, self.num_patches, embed_dim)) # (1, 65, 192)
         
-        # nn.init.normal_(self.class_token, std=0.02) # class_token 초기화
-        # trunc_normal_(self.positional_embedding, std=.02) # positional_embedding 초기화
+        nn.init.normal_(self.class_token, std=0.02) # class_token 초기화
+        trunc_normal_(self.positional_embedding, std=.02) # positional_embedding 초기화
 
     def forward(self, x):
         B, C, H, W = x.shape # (batch_size, in_channels, img_size, img_size): (batch_size, 3, 32, 32)
@@ -39,7 +39,7 @@ class PatchEmbedding(nn.Module):
         x = th.cat((class_tokens, x), dim=2)  # (batch_size, num_patches + 1, embed_dim): (batch_size, 65, 192)
         
         x += self.positional_embedding  # (batch_size, num_patches + 1, embed_dim): (batch_size, 65, 192)
-        # x = self.dropout(x)
+        x = self.dropout(x)
         return x
 
 class SpikeSelfAttention(nn.Module):
@@ -51,7 +51,7 @@ class SpikeSelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout) # 드롭아웃 비율: 0.1
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias) # (192, 576)
-        # self.qkv_batchnorm = nn.BatchNorm1d(dim * 3) # (576)
+        self.qkv_batchnorm = nn.BatchNorm1d(dim * 3) # (576)
         self.qkv_neuron = MultiStepLIFNode(tau=2.0, detach_reset=True, backend='torch')
         # self.qkv_neuron = LIFNode()
         

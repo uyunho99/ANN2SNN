@@ -3,9 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
 from spikingjelly.clock_driven.neuron import MultiStepLIFNode
-# from spikingjelly.activation_based.neuron import LIFNode
-
-import math
 
 class PatchEmbedding(nn.Module):
     def __init__(self, in_channels=3, embed_dim=192, img_size=32, patch_size=4, drop_rate=0.1):
@@ -14,7 +11,7 @@ class PatchEmbedding(nn.Module):
         self.patch_size = patch_size # 4
         self.num_patches = (img_size // patch_size) ** 2 # 8*8 = 64
         self.embed_dim = embed_dim # 192
-        # self.dropout = nn.Dropout(drop_rate) # 0.1
+        self.dropout = nn.Dropout(drop_rate) # 0.1
         
         self.project = nn.Conv2d(
             in_channels=in_channels,
@@ -27,8 +24,8 @@ class PatchEmbedding(nn.Module):
         self.num_patches += 1 # 65
         self.positional_embedding = nn.Parameter(th.zeros(1, self.num_patches, embed_dim)) # (1, 65, 192)
         
-        # nn.init.normal_(self.class_token, std=0.02) # class_token 초기화
-        # trunc_normal_(self.positional_embedding, std=.02) # positional_embedding 초기화
+        nn.init.normal_(self.class_token, std=0.02) # class_token 초기화
+        trunc_normal_(self.positional_embedding, std=.02) # positional_embedding 초기화
 
     def forward(self, x):
         T, B, C, H, W = x.shape # T: time_steps, B: batch_size, C: in_channels, H: img_size, W: img_size
@@ -42,7 +39,7 @@ class PatchEmbedding(nn.Module):
         x = th.cat((class_tokens, x), dim=2) # (T, B, num_patches + 1, embed_dim): (4, 32, 65, 192)
         
         x += self.positional_embedding # (T, B, num_patches + 1, embed_dim): (4, 32, 65, 192)
-        # x = self.dropout(x)
+        x = self.dropout(x)
         return x
 
 class SSA(nn.Module):
@@ -68,10 +65,9 @@ class SSA(nn.Module):
         self.proj_linear = nn.Linear(dim, dim)
         self.proj_bn = nn.BatchNorm1d(dim)
         self.proj_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend='torch')
-
+        
     def forward(self, x):
         T,B,N,C = x.shape
-
         x_for_qkv = x.flatten(0, 1)  # TB, N, C
         q_linear_out = self.q_linear(x_for_qkv)  # [TB, N, C]
         q_linear_out = self.q_bn(q_linear_out. transpose(-1, -2)).transpose(-1, -2).reshape(T, B, N, C).contiguous()
@@ -110,7 +106,7 @@ class MultiLayerPerceptron(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x) # (4, 32, 65, 768) -> (4, 32, 65, 192)
         x = self.activation(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         return x
 
 class TransformerEncoder(nn.Module):
@@ -122,8 +118,8 @@ class TransformerEncoder(nn.Module):
         self.mlp = MultiLayerPerceptron(dim, int(dim * mlp_ratio), dim, dropout=dropout) # (192, 768, 192)
         
     def forward(self, x):
-        x = x + self.attention(x) 
-        x = x + self.mlp(x) 
+        x = x + self.attention(self.norm1(x)) 
+        x = x + self.mlp(self.norm2(x))
         return x
         
 class SpikingViT(nn.Module):
@@ -140,44 +136,17 @@ class SpikingViT(nn.Module):
         dpr = [x.item() for x in th.linspace(0, drop_path_rate, depths)]  # stochastic depth decay rule
 
         self.patch_embedding = PatchEmbedding(in_channels, embed_dim, img_size, patch_size, dropout) # (3, 192, 32, 4, 0.1)
-        # self.blocks = nn.Sequential(*[
-        #     TransformerEncoder(embed_dim, num_heads, mlp_ratio, qkv_bias, dropout, 
-        #                        drop_path=dpr[i], sr_ratio=sr_ratios) for i in range(depths) # (192, 8, 4.0, False, 0.1) * 12
-        # ])
-        self.block = TransformerEncoder(embed_dim, num_heads, mlp_ratio, qkv_bias, dropout)
-        # setattr(self, f"patch_embedding", patch_embedding)
-        # setattr(self, f"blocks", blocks)
+        self.blocks = nn.Sequential(*[
+            TransformerEncoder(embed_dim, num_heads, mlp_ratio, qkv_bias, dropout, 
+                               drop_path=dpr[i], sr_ratio=sr_ratios) for i in range(depths) # (192, 8, 4.0, False, 0.1) * 12
+        ])
         
-        self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, num_classes) # (192, 10)
-        self.apply(self._init_weights)
-
-    @th.jit.ignore
-    def _get_pos_embed(self, pos_embed, patch_embed, H, W):
-        if H * W == self.patch_embed1.num_patches:
-            return pos_embed
-        else:
-            return F.interpolate(
-                pos_embed.reshape(1, patch_embed.H, patch_embed.W, -1).permute(0, 3, 1, 2),
-                size=(H, W), mode="bilinear").reshape(1, -1, H * W).permute(0, 2, 1)
-            
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
 
     def forward_features(self, x):
-        # blocks = getattr(self, f"blocks")
-        # patch_embedding = getattr(self, f"patch_embedding")
-
         x = self.patch_embedding(x)
-        # for block in blocks:
-        #    x = block(x)
-        x = self.block(x)
+        for block in self.blocks:
+           x = block(x)
         return x.mean(2)
 
     def forward(self, x):
